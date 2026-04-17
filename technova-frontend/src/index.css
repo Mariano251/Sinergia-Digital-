@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply text-tn-text font-sans antialiased;
+    margin: 0;
+    padding: 0;
+    background-color: #07091a;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-tn-dark;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-tn-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-tn-accent;
+  }
+}
+
+@layer components {
+  /* Botón primario */
+  .btn-primary {
+    @apply bg-tn-accent hover:bg-tn-accent-dark text-white font-semibold px-6 py-3 rounded-lg
+           transition-all duration-200 hover:shadow-accent active:scale-95 disabled:opacity-50
+           disabled:cursor-not-allowed;
+  }
+
+  /* Botón secundario */
+  .btn-secondary {
+    @apply bg-tn-card border border-tn-border hover:border-tn-accent text-tn-text font-semibold
+           px-6 py-3 rounded-lg transition-all duration-200 active:scale-95;
+  }
+
+  /* Botón ghost */
+  .btn-ghost {
+    @apply text-tn-muted hover:text-tn-text transition-colors duration-200;
+  }
+
+  /* Card base — fondo semi-transparente para que se vean las partículas */
+  .card {
+    @apply border border-tn-border rounded-xl shadow-card;
+    background: rgba(26, 26, 46, 0.6);
+    backdrop-filter: blur(2px);
+  }
+
+  /* Input base */
+  .input {
+    @apply w-full bg-tn-dark-2 border border-tn-border rounded-lg px-4 py-3 text-tn-text
+           placeholder-tn-muted focus:outline-none focus:border-tn-accent focus:ring-1
+           focus:ring-tn-accent transition-colors duration-200;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+}
