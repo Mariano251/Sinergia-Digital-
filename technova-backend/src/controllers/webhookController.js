@@ -14,7 +14,7 @@ const cartAbandoned = async (req, res, next) => {
 
     // Obtener datos del usuario
     const userResult = await pool.query(
-      'SELECT id, name, email, telegram_chat_id FROM users WHERE id = $1',
+      'SELECT id, name, email, telegram_chat_id, COALESCE(previous_abandonment_count, 0) AS previous_abandonment_count FROM users WHERE id = $1',
       [user_id]
     );
 
@@ -45,13 +45,18 @@ const cartAbandoned = async (req, res, next) => {
     const cartId   = `cart_${user_id}_${Date.now()}`;
     const checkoutUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/checkout`;
 
+    // cart_stage: por ahora SIEMPRE 'cart' (mismo criterio que el job automático
+    // en abandonedCartService.js; la tabla cart_items no tiene columna de etapa
+    // de checkout todavía).
     // Payload exacto que espera n8n
     const payload = {
-      customer_id:     user.id,
-      name:            user.name,
-      email:           user.email,
-      telegram_chat_id: user.telegram_chat_id,
-      cart_value:      cartValue,
+      customer_id:                user.id,
+      name:                       user.name,
+      email:                      user.email,
+      telegram_chat_id:           user.telegram_chat_id,
+      cart_value:                 cartValue,
+      cart_stage:                 'cart',
+      previous_abandonment_count: user.previous_abandonment_count,
       cart: {
         cart_id:      cartId,
         checkout_url: checkoutUrl,
@@ -72,6 +77,14 @@ const cartAbandoned = async (req, res, next) => {
     // Marcar el carrito como notificado para no enviar duplicados
     await pool.query(
       'UPDATE cart_items SET abandoned_notified = true WHERE user_id = $1',
+      [user_id]
+    );
+
+    // Incrementar el contador de abandonos del usuario (igual que el job
+    // automático). Se hace DESPUÉS de enviar: el payload ya viajó con el
+    // conteo "previo", y este abandono suma para la próxima notificación.
+    await pool.query(
+      'UPDATE users SET previous_abandonment_count = previous_abandonment_count + 1 WHERE id = $1',
       [user_id]
     );
 
