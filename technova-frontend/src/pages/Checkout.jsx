@@ -2,10 +2,20 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart }  from '../context/CartContext';
 import { useAuth }  from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { required, digitsOnly, runValidators } from '../utils/validators';
 import api from '../services/api';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
+
+const ADDR_VALIDATORS = {
+  nombre:        [required('El nombre es obligatorio')],
+  calle:         [required('La calle y número son obligatorios')],
+  ciudad:        [required('La ciudad es obligatoria')],
+  provincia:     [required('La provincia es obligatoria')],
+  codigo_postal: [required('El código postal es obligatorio'), digitsOnly('El código postal debe ser numérico')],
+};
 
 const PAYMENT_METHODS = [
   { id: 'tarjeta_credito', label: 'Tarjeta de crédito' },
@@ -17,11 +27,8 @@ const PAYMENT_METHODS = [
 export default function Checkout() {
   const { items, total, clearCart } = useCart();
   const { user } = useAuth();
+  const toast    = useToast();
   const navigate = useNavigate();
-
-  // Debug: verificar estado del carrito y localStorage en cada render
-  console.log('[Checkout] items:', items);
-  console.log('[Checkout] localStorage:', localStorage.getItem('technova_cart'));
 
   const [form, setForm] = useState({
     nombre:     '',
@@ -31,21 +38,68 @@ export default function Checkout() {
     codigo_postal: '',
     payment_method: 'tarjeta_credito'
   });
+  const [errors,     setErrors]     = useState({});
+  const [touched,    setTouched]    = useState({});
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState('');
   const [success,    setSuccess]    = useState(false);
+  const [order,      setOrder]      = useState(null); // orden creada (para la confirmación)
   const [mpSimMode,  setMpSimMode]  = useState(false); // pantalla de simulación MP
 
+  const validateField = (name, value) => runValidators(ADDR_VALIDATORS[name] || [], value);
+
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+    if (touched[name]) {
+      setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+    }
   };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+  };
+
+  const validateAll = () => {
+    const next = {};
+    Object.keys(ADDR_VALIDATORS).forEach(k => { next[k] = validateField(k, form[k]); });
+    setErrors(next);
+    setTouched(Object.fromEntries(Object.keys(ADDR_VALIDATORS).map(k => [k, true])));
+    return Object.values(next).every(v => !v);
+  };
+
+  const fieldClass = (name) =>
+    `input ${touched[name] && errors[name] ? 'border-tn-danger focus:border-tn-danger focus:ring-tn-danger' : ''}`;
+
+  // Progreso del checkout: 1 Envío → 2 Pago → 3 Confirmación
+  const addressComplete = Object.keys(ADDR_VALIDATORS).every(
+    k => form[k] && !validateField(k, form[k])
+  );
+  const currentStep = success ? 3 : addressComplete ? 2 : 1;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (items.length === 0) return;
 
     setError('');
+    if (!validateAll()) {
+      toast.error('Revisá los datos de envío.');
+      return;
+    }
     setLoading(true);
+
+    // Snapshot del carrito ANTES de vaciarlo, para mostrarlo en la confirmación
+    const itemsSnapshot = [...items];
+    const totalSnapshot = total;
+    const shipping = {
+      nombre:        form.nombre,
+      calle:         form.calle,
+      ciudad:        form.ciudad,
+      provincia:     form.provincia,
+      codigo_postal: form.codigo_postal
+    };
 
     try {
       // MercadoPago: flujo simulado para la tesis.
@@ -53,15 +107,9 @@ export default function Checkout() {
       // la pantalla de simulación en lugar de redirigir a MP real.
       if (form.payment_method === 'mercadopago') {
         await api.post('/orders', {
-          shipping_address: {
-            nombre:        form.nombre,
-            calle:         form.calle,
-            ciudad:        form.ciudad,
-            provincia:     form.provincia,
-            codigo_postal: form.codigo_postal
-          },
-          payment_method: 'mercadopago',
-          status:         'pendiente_mp'
+          shipping_address: shipping,
+          payment_method:   'mercadopago',
+          status:           'pendiente_mp'
         });
         clearCart();
         setMpSimMode(true);
@@ -70,20 +118,21 @@ export default function Checkout() {
       }
 
       // Resto de métodos de pago: flujo normal
-      await api.post('/orders', {
-        shipping_address: {
-          nombre:        form.nombre,
-          calle:         form.calle,
-          ciudad:        form.ciudad,
-          provincia:     form.provincia,
-          codigo_postal: form.codigo_postal
-        },
-        payment_method: form.payment_method
+      const { data } = await api.post('/orders', {
+        shipping_address: shipping,
+        payment_method:   form.payment_method
       });
 
       clearCart();
+      toast.success('¡Compra completada! Tu orden fue procesada con éxito.');
+      setOrder({
+        id:             data?.id,
+        total:          data?.total_amount ?? totalSnapshot,
+        items:          itemsSnapshot,
+        shipping,
+        payment_method: form.payment_method
+      });
       setSuccess(true);
-      setTimeout(() => navigate('/'), 3000);
     } catch (err) {
       setError(err.response?.data?.error || 'Error al procesar la orden. Intentá de nuevo.');
     } finally {
@@ -117,21 +166,90 @@ export default function Checkout() {
     );
   }
 
-  // Pantalla de éxito
-  if (success) {
+  // Pantalla de confirmación de compra
+  if (success && order) {
+    const paymentLabel = PAYMENT_METHODS.find(m => m.id === order.payment_method)?.label || order.payment_method;
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <div className="card max-w-md w-full p-10 text-center animate-fade-in">
-          <div className="w-20 h-20 bg-tn-success/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-tn-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
+        <div className="card p-8 sm:p-10 animate-fade-in">
+          {/* Encabezado */}
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-tn-success/10 rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg className="w-10 h-10 text-tn-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-tn-text mb-2">¡Gracias por tu compra!</h2>
+            <p className="text-tn-muted">Tu orden fue procesada correctamente.</p>
+            {order.id && (
+              <p className="mt-3 inline-block bg-tn-accent/10 text-tn-accent font-semibold text-sm px-4 py-1.5 rounded-full">
+                Orden #{order.id}
+              </p>
+            )}
           </div>
-          <h2 className="text-2xl font-bold text-tn-text mb-3">¡Orden confirmada!</h2>
-          <p className="text-tn-muted mb-6">
-            Tu pedido fue procesado correctamente. Recibirás una confirmación pronto.
-          </p>
-          <p className="text-tn-muted text-sm">Redirigiendo al inicio...</p>
+
+          {/* Resumen de items */}
+          <div className="border-t border-tn-border pt-6">
+            <h3 className="font-semibold text-tn-text mb-4">Resumen del pedido</h3>
+            <div className="space-y-3">
+              {order.items.map(item => (
+                <div key={item.product_id} className="flex items-center gap-3">
+                  <img
+                    src={item.image_url}
+                    alt={item.name}
+                    className="w-12 h-12 object-cover rounded-lg flex-shrink-0"
+                    onError={e => { e.target.src = 'https://placehold.co/48x48/1a1a2e/4f8ef7?text=TN'; }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-tn-text text-sm font-medium truncate">{item.name}</p>
+                    <p className="text-tn-muted text-xs">x{item.quantity}</p>
+                  </div>
+                  <span className="text-tn-text text-sm font-semibold flex-shrink-0">
+                    {formatPrice(item.price * item.quantity)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-between text-tn-text font-bold text-lg mt-4 pt-4 border-t border-tn-border">
+              <span>Total</span>
+              <span className="text-tn-accent">{formatPrice(order.total)}</span>
+            </div>
+          </div>
+
+          {/* Datos de envío y pago */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 text-sm">
+            <div className="bg-tn-dark-2 rounded-xl p-4">
+              <p className="text-tn-muted text-xs uppercase tracking-wider mb-2">Envío a</p>
+              <p className="text-tn-text font-medium">{order.shipping.nombre}</p>
+              <p className="text-tn-muted">{order.shipping.calle}</p>
+              <p className="text-tn-muted">{order.shipping.ciudad}, {order.shipping.provincia} ({order.shipping.codigo_postal})</p>
+            </div>
+            <div className="bg-tn-dark-2 rounded-xl p-4">
+              <p className="text-tn-muted text-xs uppercase tracking-wider mb-2">Método de pago</p>
+              <p className="text-tn-text font-medium">{paymentLabel}</p>
+              <p className="text-tn-muted text-xs mt-2">Recibirás la confirmación por email.</p>
+            </div>
+          </div>
+
+          {/* Próximos pasos */}
+          <div className="mt-6 bg-tn-accent/5 border border-tn-accent/20 rounded-xl p-4">
+            <p className="text-tn-text text-sm font-medium mb-1">¿Qué sigue?</p>
+            <p className="text-tn-muted text-sm">
+              Prepararemos tu pedido y te avisaremos cuando salga el envío. Podés seguir el estado desde tu perfil.
+            </p>
+          </div>
+
+          {/* Acciones */}
+          <div className="flex flex-col sm:flex-row gap-3 mt-8">
+            {user && (
+              <Link to="/profile" className="btn-primary flex-1 justify-center text-center">
+                Ver mis órdenes
+              </Link>
+            )}
+            <Link to="/catalog" className="btn-secondary flex-1 justify-center text-center">
+              Seguir comprando
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -152,7 +270,41 @@ export default function Checkout() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <h1 className="text-3xl font-bold text-tn-text mb-8">Checkout</h1>
+      <h1 className="text-3xl font-bold text-tn-text mb-6">Checkout</h1>
+
+      {/* Stepper de progreso */}
+      <div className="flex items-center justify-center mb-10 max-w-xl mx-auto">
+        {[
+          { n: 1, label: 'Envío' },
+          { n: 2, label: 'Pago' },
+          { n: 3, label: 'Confirmación' },
+        ].map((step, i, arr) => (
+          <div key={step.n} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center gap-1.5">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold
+                               transition-colors duration-300 border-2
+                ${currentStep > step.n
+                  ? 'bg-tn-success border-tn-success text-white'
+                  : currentStep === step.n
+                    ? 'bg-tn-accent border-tn-accent text-white'
+                    : 'bg-tn-dark-2 border-tn-border text-tn-muted'}`}>
+                {currentStep > step.n ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : step.n}
+              </div>
+              <span className={`text-xs font-medium ${currentStep >= step.n ? 'text-tn-text' : 'text-tn-muted'}`}>
+                {step.label}
+              </span>
+            </div>
+            {i < arr.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-2 -mt-5 transition-colors duration-300
+                ${currentStep > step.n ? 'bg-tn-success' : 'bg-tn-border'}`} />
+            )}
+          </div>
+        ))}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
 
@@ -173,7 +325,7 @@ export default function Checkout() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
             {/* Dirección de envío */}
             <div className="card p-6">
               <h2 className="font-bold text-tn-text text-lg mb-5 flex items-center gap-2">
@@ -192,10 +344,13 @@ export default function Checkout() {
                     name="nombre"
                     value={form.nombre}
                     onChange={handleChange}
-                    required
+                    onBlur={handleBlur}
                     placeholder="Juan Pérez"
-                    className="input"
+                    className={fieldClass('nombre')}
                   />
+                  {touched.nombre && errors.nombre && (
+                    <p className="text-tn-danger text-xs mt-1.5">{errors.nombre}</p>
+                  )}
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-tn-muted mb-1.5">Calle y número</label>
@@ -203,10 +358,13 @@ export default function Checkout() {
                     name="calle"
                     value={form.calle}
                     onChange={handleChange}
-                    required
+                    onBlur={handleBlur}
                     placeholder="Av. Corrientes 1234"
-                    className="input"
+                    className={fieldClass('calle')}
                   />
+                  {touched.calle && errors.calle && (
+                    <p className="text-tn-danger text-xs mt-1.5">{errors.calle}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-tn-muted mb-1.5">Ciudad</label>
@@ -214,10 +372,13 @@ export default function Checkout() {
                     name="ciudad"
                     value={form.ciudad}
                     onChange={handleChange}
-                    required
+                    onBlur={handleBlur}
                     placeholder="Buenos Aires"
-                    className="input"
+                    className={fieldClass('ciudad')}
                   />
+                  {touched.ciudad && errors.ciudad && (
+                    <p className="text-tn-danger text-xs mt-1.5">{errors.ciudad}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-tn-muted mb-1.5">Provincia</label>
@@ -225,10 +386,13 @@ export default function Checkout() {
                     name="provincia"
                     value={form.provincia}
                     onChange={handleChange}
-                    required
+                    onBlur={handleBlur}
                     placeholder="CABA"
-                    className="input"
+                    className={fieldClass('provincia')}
                   />
+                  {touched.provincia && errors.provincia && (
+                    <p className="text-tn-danger text-xs mt-1.5">{errors.provincia}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-tn-muted mb-1.5">Código postal</label>
@@ -236,10 +400,13 @@ export default function Checkout() {
                     name="codigo_postal"
                     value={form.codigo_postal}
                     onChange={handleChange}
-                    required
+                    onBlur={handleBlur}
                     placeholder="1001"
-                    className="input"
+                    className={fieldClass('codigo_postal')}
                   />
+                  {touched.codigo_postal && errors.codigo_postal && (
+                    <p className="text-tn-danger text-xs mt-1.5">{errors.codigo_postal}</p>
+                  )}
                 </div>
               </div>
             </div>

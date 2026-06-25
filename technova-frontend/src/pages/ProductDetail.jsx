@@ -38,7 +38,8 @@ export default function ProductDetail() {
           <div className="space-y-4">
             {[60, 40, 80, 40, 40].map((w, i) => (
               <div key={i}
-                   className={`h-6 bg-tn-card-hover animate-pulse rounded w-${w} max-w-full`} />
+                   style={{ width: `${w}%` }}
+                   className="h-6 bg-tn-card-hover animate-pulse rounded max-w-full" />
             ))}
           </div>
         </div>

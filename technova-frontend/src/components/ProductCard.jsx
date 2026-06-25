@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
@@ -6,10 +7,13 @@ const formatPrice = (n) =>
 
 export default function ProductCard({ product }) {
   const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
 
   const handleAdd = (e) => {
     e.preventDefault();
     addItem(product, 1);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1500);
   };
 
   return (
@@ -73,9 +77,17 @@ export default function ProductCard({ product }) {
           <button
             onClick={handleAdd}
             disabled={product.stock === 0}
-            className="btn-primary text-sm py-2 px-4 disabled:opacity-40"
+            className={`text-sm py-2 px-4 disabled:opacity-40 flex items-center gap-1.5
+              ${added ? 'btn-primary bg-tn-success hover:bg-tn-success' : 'btn-primary'}`}
           >
-            + Agregar
+            {added ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Agregado
+              </>
+            ) : '+ Agregar'}
           </button>
         </div>
       </div>

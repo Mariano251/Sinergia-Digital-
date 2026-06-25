@@ -39,7 +39,7 @@ const seed = async () => {
         price:        55000,
         stock:        50,
         category_slug:'perifericos',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Teclado+RGB',
+        image_url:    'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400&q=80',
         featured:     true
       },
       {
@@ -48,7 +48,7 @@ const seed = async () => {
         price:        20000,
         stock:        100,
         category_slug:'perifericos',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Mouse+Pad+XL',
+        image_url:    'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&q=80',
         featured:     false
       },
       {
@@ -57,7 +57,7 @@ const seed = async () => {
         price:        45000,
         stock:        30,
         category_slug:'audio',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Auriculares+BT',
+        image_url:    'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80',
         featured:     true
       },
       {
@@ -66,7 +66,7 @@ const seed = async () => {
         price:        180000,
         stock:        15,
         category_slug:'monitores',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Monitor+27%22',
+        image_url:    'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400&q=80',
         featured:     true
       },
       {
@@ -75,7 +75,7 @@ const seed = async () => {
         price:        85000,
         stock:        40,
         category_slug:'almacenamiento',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=SSD+1TB+NVMe',
+        image_url:    'https://images.unsplash.com/photo-1597872200969-2b65d56bd16b?w=400&q=80',
         featured:     true
       },
       {
@@ -84,7 +84,7 @@ const seed = async () => {
         price:        35000,
         stock:        25,
         category_slug:'perifericos',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Webcam+1080p',
+        image_url:    'https://images.unsplash.com/photo-1612815154858-60aa4c59eaa6?w=400&q=80',
         featured:     false
       },
       {
@@ -93,7 +93,7 @@ const seed = async () => {
         price:        65000,
         stock:        20,
         category_slug:'audio',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Headset+7.1',
+        image_url:    'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&q=80',
         featured:     true
       },
       {
@@ -102,7 +102,7 @@ const seed = async () => {
         price:        4000,
         stock:        200,
         category_slug:'accesorios',
-        image_url:    'https://placehold.co/400x300/1a1a2e/4f8ef7?text=Cable+USB-C',
+        image_url:    'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=400&q=80',
         featured:     false
       },
     ];

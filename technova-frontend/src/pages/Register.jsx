@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { required, email as emailRule, minLength, digitsOnly, runValidators } from '../utils/validators';
 
 export default function Register() {
   const { register, user } = useAuth();
+  const toast    = useToast();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -13,43 +16,93 @@ export default function Register() {
     confirm_password: '',
     telegram_chat_id: ''
   });
+  const [errors,  setErrors]  = useState({});
+  const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
-  if (user) {
-    navigate('/');
-    return null;
-  }
+  // Redirigir si ya está logueado — en un efecto, NO durante el render
+  useEffect(() => {
+    if (user) navigate('/', { replace: true });
+  }, [user, navigate]);
+
+  // Validación por campo. confirm_password depende del valor actual de password.
+  const validateField = (name, value, current = form) => {
+    switch (name) {
+      case 'name':
+        return runValidators([required('El nombre es obligatorio'), minLength(2, 'Mínimo 2 caracteres')], value);
+      case 'email':
+        return runValidators([required('El email es obligatorio'), emailRule()], value);
+      case 'password':
+        return runValidators([required('La contraseña es obligatoria'), minLength(6, 'Mínimo 6 caracteres')], value);
+      case 'confirm_password':
+        if (!value) return 'Confirmá tu contraseña';
+        return value === current.password ? '' : 'Las contraseñas no coinciden';
+      case 'telegram_chat_id':
+        return digitsOnly('El Chat ID debe ser solo números')(value);
+      default:
+        return '';
+    }
+  };
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    const next = { ...form, [name]: value };
+    setForm(next);
+    setErrors(prev => {
+      const updated = { ...prev };
+      if (touched[name]) updated[name] = validateField(name, value, next);
+      // Si cambia password, revalidar la confirmación si ya fue tocada
+      if (name === 'password' && touched.confirm_password) {
+        updated.confirm_password = validateField('confirm_password', next.confirm_password, next);
+      }
+      return updated;
+    });
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value, form) }));
+  };
+
+  const validateAll = () => {
+    const fields = ['name', 'email', 'password', 'confirm_password', 'telegram_chat_id'];
+    const next = {};
+    fields.forEach(k => { next[k] = validateField(k, form[k], form); });
+    setErrors(next);
+    setTouched(Object.fromEntries(fields.map(k => [k, true])));
+    return Object.values(next).every(v => !v);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (form.password !== form.confirm_password) {
-      setError('Las contraseñas no coinciden');
-      return;
-    }
-
-    if (form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
-      return;
-    }
-
+    if (!validateAll()) return;
     setLoading(true);
 
     try {
       await register(form.name, form.email, form.password, form.telegram_chat_id || undefined);
+      toast.success('¡Cuenta creada con éxito! Bienvenido a TechNova.');
       navigate('/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al registrarse');
+      const msg = err.response?.data?.error || 'Error al registrarse';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
+
+  const fieldClass = (name) =>
+    `input ${touched[name] && errors[name] ? 'border-tn-danger focus:border-tn-danger focus:ring-tn-danger' : ''}`;
+
+  const fields = [
+    { name: 'name',             label: 'Nombre completo',  type: 'text',     placeholder: 'Juan Pérez',          autoComplete: 'name' },
+    { name: 'email',            label: 'Email',            type: 'email',    placeholder: 'tu@email.com',        autoComplete: 'email' },
+    { name: 'password',         label: 'Contraseña',       type: 'password', placeholder: 'Mínimo 6 caracteres', autoComplete: 'new-password' },
+    { name: 'confirm_password', label: 'Confirmar contraseña', type: 'password', placeholder: 'Repetí tu contraseña', autoComplete: 'new-password' },
+  ];
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
@@ -71,63 +124,26 @@ export default function Register() {
 
         {/* Formulario */}
         <div className="card p-8">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
-            <div>
-              <label className="block text-sm font-medium text-tn-muted mb-1.5">Nombre completo</label>
-              <input
-                type="text"
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                required
-                placeholder="Juan Pérez"
-                className="input"
-                autoComplete="name"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-tn-muted mb-1.5">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                required
-                placeholder="tu@email.com"
-                className="input"
-                autoComplete="email"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-tn-muted mb-1.5">Contraseña</label>
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                required
-                placeholder="Mínimo 6 caracteres"
-                className="input"
-                autoComplete="new-password"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-tn-muted mb-1.5">Confirmar contraseña</label>
-              <input
-                type="password"
-                name="confirm_password"
-                value={form.confirm_password}
-                onChange={handleChange}
-                required
-                placeholder="Repetí tu contraseña"
-                className="input"
-                autoComplete="new-password"
-              />
-            </div>
+            {fields.map(f => (
+              <div key={f.name}>
+                <label className="block text-sm font-medium text-tn-muted mb-1.5">{f.label}</label>
+                <input
+                  type={f.type}
+                  name={f.name}
+                  value={form[f.name]}
+                  onChange={handleChange}
+                  onBlur={handleBlur}
+                  placeholder={f.placeholder}
+                  className={fieldClass(f.name)}
+                  autoComplete={f.autoComplete}
+                />
+                {touched[f.name] && errors[f.name] && (
+                  <p className="text-tn-danger text-xs mt-1.5">{errors[f.name]}</p>
+                )}
+              </div>
+            ))}
 
             {/* Campo opcional para Telegram */}
             <div>
@@ -140,12 +156,17 @@ export default function Register() {
                 name="telegram_chat_id"
                 value={form.telegram_chat_id}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="Ej: 123456789"
-                className="input"
+                className={fieldClass('telegram_chat_id')}
               />
-              <p className="text-xs text-tn-muted mt-1">
-                Si tenés un bot de Telegram configurado podés recibir alertas de tus pedidos.
-              </p>
+              {touched.telegram_chat_id && errors.telegram_chat_id ? (
+                <p className="text-tn-danger text-xs mt-1.5">{errors.telegram_chat_id}</p>
+              ) : (
+                <p className="text-xs text-tn-muted mt-1">
+                  Si tenés un bot de Telegram configurado podés recibir alertas de tus pedidos.
+                </p>
+              )}
             </div>
 
             {error && (

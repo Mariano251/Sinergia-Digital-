@@ -29,6 +29,7 @@ export default {
       animation: {
         'slide-in': 'slideIn 0.3s ease-out',
         'fade-in':  'fadeIn 0.3s ease-out',
+        'pop':      'pop 0.3s ease-out',
       },
       keyframes: {
         slideIn: {
@@ -38,6 +39,11 @@ export default {
         fadeIn: {
           '0%':   { opacity: '0', transform: 'translateY(10px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        pop: {
+          '0%':   { transform: 'scale(0.5)' },
+          '50%':  { transform: 'scale(1.25)' },
+          '100%': { transform: 'scale(1)' },
         }
       }
     }

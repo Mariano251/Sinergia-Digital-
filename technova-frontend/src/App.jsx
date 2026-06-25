@@ -8,6 +8,7 @@ import ProductDetail from './pages/ProductDetail';
 import Checkout      from './pages/Checkout';
 import Login         from './pages/Login';
 import Register      from './pages/Register';
+import Profile       from './pages/Profile';
 import NotFound      from './pages/NotFound';
 import useAbandonedCart from './hooks/useAbandonedCart';
 
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/checkout"   element={<Checkout />} />
           <Route path="/login"      element={<Login />} />
           <Route path="/register"   element={<Register />} />
+          <Route path="/profile"    element={<Profile />} />
           <Route path="*"           element={<NotFound />} />
         </Routes>
       </main>

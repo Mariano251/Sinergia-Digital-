@@ -1,40 +1,76 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import { required, email as emailRule, runValidators } from '../utils/validators';
+
+const VALIDATORS = {
+  email:    [required('El email es obligatorio'), emailRule()],
+  password: [required('La contraseña es obligatoria')],
+};
 
 export default function Login() {
   const { login, user } = useAuth();
+  const toast           = useToast();
   const navigate        = useNavigate();
   const { state }       = useLocation();
 
   const [form,    setForm]    = useState({ email: '', password: '' });
+  const [errors,  setErrors]  = useState({});
+  const [touched, setTouched] = useState({});
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState('');
 
-  // Si ya está logueado, redirigir
-  if (user) {
-    navigate(state?.from || '/');
-    return null;
-  }
+  // Redirigir si ya está logueado — en un efecto, NO durante el render
+  useEffect(() => {
+    if (user) navigate(state?.from || '/', { replace: true });
+  }, [user, navigate, state]);
+
+  const validateField = (name, value) => runValidators(VALIDATORS[name] || [], value);
 
   const handleChange = (e) => {
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm(prev => ({ ...prev, [name]: value }));
+    if (touched[name]) {
+      setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+  };
+
+  const validateAll = () => {
+    const next = {};
+    Object.keys(VALIDATORS).forEach(k => { next[k] = validateField(k, form[k]); });
+    setErrors(next);
+    setTouched({ email: true, password: true });
+    return Object.values(next).every(v => !v);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!validateAll()) return;
     setLoading(true);
 
     try {
-      await login(form.email, form.password);
+      const data = await login(form.email, form.password);
+      toast.success(`¡Bienvenido de vuelta, ${data.user.name.split(' ')[0]}!`);
       navigate(state?.from || '/');
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al iniciar sesión');
+      const msg = err.response?.data?.error || 'Error al iniciar sesión';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
   };
+
+  const fieldClass = (name) =>
+    `input ${touched[name] && errors[name] ? 'border-tn-danger focus:border-tn-danger focus:ring-tn-danger' : ''}`;
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-12">
@@ -56,7 +92,7 @@ export default function Login() {
 
         {/* Formulario */}
         <div className="card p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-tn-muted mb-1.5">Email</label>
               <input
@@ -64,11 +100,14 @@ export default function Login() {
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                required
+                onBlur={handleBlur}
                 placeholder="tu@email.com"
-                className="input"
+                className={fieldClass('email')}
                 autoComplete="email"
               />
+              {touched.email && errors.email && (
+                <p className="text-tn-danger text-xs mt-1.5">{errors.email}</p>
+              )}
             </div>
 
             <div>
@@ -78,11 +117,14 @@ export default function Login() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                required
+                onBlur={handleBlur}
                 placeholder="••••••••"
-                className="input"
+                className={fieldClass('password')}
                 autoComplete="current-password"
               />
+              {touched.password && errors.password && (
+                <p className="text-tn-danger text-xs mt-1.5">{errors.password}</p>
+              )}
             </div>
 
             {error && (
