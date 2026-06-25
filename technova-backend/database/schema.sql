@@ -5,15 +5,21 @@
 
 -- Tabla de usuarios
 CREATE TABLE IF NOT EXISTS users (
-  id               SERIAL PRIMARY KEY,
-  name             VARCHAR(255) NOT NULL,
-  email            VARCHAR(255) UNIQUE NOT NULL,
-  password_hash    VARCHAR(255) NOT NULL,
-  telegram_chat_id VARCHAR(100),
-  role             VARCHAR(50)  DEFAULT 'customer',
-  created_at       TIMESTAMP    DEFAULT NOW(),
-  updated_at       TIMESTAMP    DEFAULT NOW()
+  id                          SERIAL PRIMARY KEY,
+  name                        VARCHAR(255) NOT NULL,
+  email                       VARCHAR(255) UNIQUE NOT NULL,
+  password_hash               VARCHAR(255) NOT NULL,
+  telegram_chat_id            VARCHAR(100),
+  role                        VARCHAR(50)  DEFAULT 'customer',
+  -- Cuántas veces este usuario abandonó el carrito en el pasado.
+  -- Se envía al webhook de n8n para personalizar el mensaje de recupero.
+  previous_abandonment_count  INTEGER      DEFAULT 0,
+  created_at                  TIMESTAMP    DEFAULT NOW(),
+  updated_at                  TIMESTAMP    DEFAULT NOW()
 );
+
+-- Para bases ya creadas (CREATE TABLE IF NOT EXISTS no agrega columnas nuevas):
+ALTER TABLE users ADD COLUMN IF NOT EXISTS previous_abandonment_count INTEGER DEFAULT 0;
 
 -- Tabla de categorías de productos
 CREATE TABLE IF NOT EXISTS categories (

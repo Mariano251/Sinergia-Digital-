@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 
-// SSL siempre activo — Render y cualquier proveedor cloud lo requieren.
+// Esta instancia de PostgreSQL en Render REQUIERE SSL.
 // rejectUnauthorized: false acepta el certificado auto-firmado de Render.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

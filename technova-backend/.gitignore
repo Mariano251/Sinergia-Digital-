@@ -1,0 +1,20 @@
+# Variables de entorno y secretos — NUNCA al repo
+.env
+.env.*
+!.env.example
+
+# Dependencias
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db
+
+# Scripts temporales de migración/prueba (se crean y se borran)
+migrate_*.js
+fix_*.js
+clean_*.js
