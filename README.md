@@ -1,52 +1,105 @@
-# TechNova — Tesis Integradora
+# TechNova — Sistema Inteligente de Recuperación de Ventas
 
-TechNova es una tienda de tecnología con un sistema automatizado de recuperación de carritos abandonados integrado con n8n, IA (Google Gemini) y notificaciones por Telegram y Email.
+**Trabajo Final Integrador — Tecnicatura Universitaria en Programación**  
+Universidad Tecnológica Nacional — Facultad Regional Mendoza  
 
----
-
-## Descripción del proyecto
-
-El proyecto demuestra la integración de una tienda e-commerce completa con automatización inteligente mediante herramientas no-code/low-code:
-
-- **Tienda web completa** — catálogo, carrito, checkout y autenticación de usuarios.
-- **Detección automática** — cuando un usuario agrega productos y no completa la compra, el sistema lo detecta y activa el flujo de recuperación.
-- **Scoring de prioridad** — n8n clasifica el carrito según su valor (ALTA / MEDIA / BAJA).
-- **Mensajes personalizados con IA** — Google Gemini genera un mensaje adaptado a la prioridad y el contenido del carrito.
-- **Notificación multicanal** — Telegram para prioridad alta, Email (Gmail) para media y baja.
-- **Auditoría** — cada notificación queda registrada en Google Sheets.
+**Autores:** Mariano Lopez Tubaro & Lucio Arena  
+**Director:** Prof. Alberto Cortez  
+**Año:** 2026
 
 ---
 
-## Estructura del proyecto
+## Descripción
+
+TechNova es una plataforma de e-commerce funcional integrada con un sistema automatizado de recuperación de carritos abandonados. El sistema utiliza Agentes de Inteligencia Artificial basados en Claude (Anthropic), un algoritmo de scoring multidimensional y orquestación omnicanal con n8n para identificar, clasificar y recuperar ventas perdidas en tiempo real.
+
+---
+
+## Arquitectura del sistema
+
+El ecosistema se organiza en cinco capas:
+
+1. **Frontend** — React 18 + Vite + Tailwind CSS
+2. **Backend** — Node.js + Express + JWT
+3. **Base de datos** — PostgreSQL (Render)
+4. **Orquestación** — n8n + Agente de IA (Claude de Anthropic)
+5. **Canales de contacto** — Telegram Bot API + SMTP (Email)
+
+---
+
+## Estructura del repositorio
 
 ```
-Pagina web/
-├── technova-backend/    # API REST — Node.js + Express + PostgreSQL
-└── technova-frontend/   # SPA — React + Vite + Tailwind CSS
+Sinergia-Digital-/
+├── technova-frontend/     # Interfaz de usuario (React 18)
+├── technova-backend/      # API REST (Node.js + Express)
+├── n8n-workflows/         # Workflow de n8n exportado en JSON
+├── render.yaml            # Configuración de deploy en Render
+└── README.md
 ```
 
 ---
 
-## Requisitos previos
+## Flujo de recuperación
 
-- Node.js v18+
-- npm
-- Cuenta en [Render](https://render.com) (para la base de datos PostgreSQL y n8n)
-- Credenciales de Google (Gmail + Sheets) configuradas en n8n
-- Bot de Telegram configurado en n8n
+1. El usuario agrega productos al carrito y abandona la sesión
+2. Un hook en el frontend o un job automático del backend detecta el abandono
+3. Se dispara un webhook a n8n con el payload del carrito
+4. El algoritmo de scoring multidimensional clasifica el lead en Alta, Media o Baja Prioridad
+5. El Agente de IA basado en Claude genera un mensaje personalizado
+6. Alta Prioridad → Telegram · Media y Baja Prioridad → Email
+7. Cada interacción queda registrada automáticamente en Google Sheets
 
 ---
 
-## Cómo ejecutar el proyecto
+## Algoritmo de scoring (Anexo A de la tesis)
+
+```
+Puntuación = (cart_value × 50%) + (abandonment_count × 30%) + (cart_stage × 20%)
+
+≥ 70 pts → Alta Prioridad → Telegram
+40–69 pts → Media Prioridad → Email
+< 40 pts  → Baja Prioridad → Email
+```
+
+---
+
+## Stack tecnológico
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | React 18, Vite 5, Tailwind CSS 3 |
+| Backend | Node.js 18, Express 4, JWT |
+| Base de datos | PostgreSQL 16 |
+| Orquestación | n8n (Railway) |
+| IA | Claude de Anthropic (claude-haiku-4-5) |
+| Canal alta conversión | Telegram Bot API |
+| Canal secundario | SMTP (Gmail) |
+| Auditoría | Google Sheets API |
+| Deploy | Render (backend + DB) |
+| Control de versiones | GitHub |
+
+---
+
+## Instalación y ejecución local
 
 ### Backend
 
 ```bash
 cd technova-backend
 npm install
-npm run migrate   # Crea las tablas en la base de datos
-npm run seed      # Carga categorías y productos de ejemplo
-npm run dev       # Inicia el servidor en http://localhost:3001
+# Configurar variables de entorno en .env (ver .env.example)
+npm run dev
+```
+
+Variables de entorno requeridas:
+
+```
+DATABASE_URL=
+JWT_SECRET=
+N8N_WEBHOOK_URL=
+FRONTEND_URL=
+PORT=3001
 ```
 
 ### Frontend
@@ -54,162 +107,32 @@ npm run dev       # Inicia el servidor en http://localhost:3001
 ```bash
 cd technova-frontend
 npm install
-npm run dev       # Inicia la app en http://localhost:5173
+npm run dev
 ```
+
+Abrí `http://localhost:5173` en el navegador.
+
+### Workflow de n8n
+
+El archivo JSON del workflow está en `n8n-workflows/`. Para importarlo:
+
+1. Abrí tu instancia de n8n
+2. Menú → Workflows → Import from file
+3. Seleccioná el archivo JSON
+4. Configurá las credenciales de Anthropic, Telegram, Gmail y Google Sheets
 
 ---
 
-## Variables de entorno
+## Resultados de validación (N=35 sesiones)
 
-Creá `technova-backend/.env` con las siguientes variables:
-
-| Variable | Descripción | Ejemplo |
-|---|---|---|
-| `DATABASE_URL` | Connection string de PostgreSQL en Render. Incluye host, usuario, contraseña y base de datos. | `postgresql://user:pass@host/dbname` |
-| `PORT` | Puerto en que escucha el servidor. Si no se define, usa `3001`. | `3001` |
-| `JWT_SECRET` | Clave secreta para firmar y verificar tokens JWT. Debe ser larga y aleatoria. | `mi_clave_super_secreta_123` |
-| `FRONTEND_URL` | URL del frontend para configurar CORS. | `http://localhost:5173` |
-| `N8N_WEBHOOK_URL` | URL del webhook de n8n que recibe los datos del carrito abandonado. | `https://n8n-sinergia.onrender.com/webhook/...` |
-| `NODE_ENV` | Entorno de ejecución. | `development` |
-
-Ejemplo de `.env` completo:
-
-```env
-DATABASE_URL=postgresql://usuario:contraseña@host.render.com:5432/technova_db
-JWT_SECRET=technova_super_secreto_cambiar_en_produccion
-N8N_WEBHOOK_URL=https://n8n-sinergia.onrender.com/webhook/carrito-abandonado
-FRONTEND_URL=http://localhost:5173
-PORT=3001
-NODE_ENV=development
-```
+| Hipótesis | Métrica | Resultado | Umbral | Estado |
+|---|---|---|---|---|
+| H1 — Latencia | Notificaciones < 5 min | 91.4% | ≥ 90% | ✅ Superado |
+| H2 — Scoring | Concordancia con experto | 91.4% (κ = 0.87) | ≥ 85% | ✅ Superado |
+| H3 — Calidad IA | Rúbrica 5 criterios | 4.4 / 5.0 (CCI = 0.82) | ≥ 4.0 | ✅ Superado |
 
 ---
 
-## Cómo acceder a n8n
+## Repositorio
 
-- **URL:** [https://n8n-sinergia.onrender.com](https://n8n-sinergia.onrender.com)
-- **Workflow:** `Sinergia Digital - Recuperación de Carritos v4 (Completo)`
-- **Nota:** Render free tier hiberna los servicios inactivos. Si la primera solicitud tarda, esperá 1-2 minutos a que despierte.
-
----
-
-## Cómo funciona el sistema
-
-```
-Usuario agrega al carrito
-        │
-        ▼
-No completa el checkout
-(inactivo 2 min fuera de /checkout)
-        │
-        ▼
-useAbandonedCart (frontend)
-dispara POST /api/webhook/cart-abandoned
-        │
-        ▼
-abandonedCartService.js (backend)
-detecta items con webhook_sent = false
-e inactivos por más de 2 minutos
-        │
-        ▼
-Backend envía payload a n8n
-(nombre, email, telegram_chat_id, items, valor)
-        │
-        ▼
-n8n calcula scoring de prioridad
-ALTA / MEDIA / BAJA (según valor del carrito)
-        │
-        ▼
-AI Agent (Google Gemini)
-genera mensaje personalizado
-        │
-        ├── ALTA prioridad ──► Telegram
-        └── MEDIA / BAJA ────► Gmail
-                │
-                ▼
-        Google Sheets (auditoría)
-```
-
-Paso a paso:
-
-1. El usuario agrega productos al carrito y llega al checkout sin confirmar.
-2. El hook `useAbandonedCart` detecta 2 minutos de inactividad fuera de `/checkout` y dispara el webhook al backend.
-3. El job automático `abandonedCartService.js` corre cada 5 minutos y consulta la DB buscando items con `webhook_sent = false` e inactivos más de 2 minutos.
-4. El backend construye el payload con los datos del cliente y los items, y lo envía a n8n.
-5. n8n valida los datos y calcula el **scoring de prioridad** según el valor del carrito.
-6. Un AI Agent con **Google Gemini** genera un mensaje de recuperación personalizado.
-7. La notificación se envía por el canal correspondiente:
-   - **ALTA prioridad** → mensaje por **Telegram**
-   - **MEDIA / BAJA prioridad** → email por **Gmail**
-8. Cada notificación se registra en **Google Sheets** para auditoría.
-9. Los items notificados se marcan con `webhook_sent = true` para no generar duplicados en ciclos futuros.
-
----
-
-## Estructura detallada del proyecto
-
-```
-technova-backend/
-├── database/
-│   ├── schema.sql              # Definición de tablas
-│   ├── migrate.js              # Ejecuta schema.sql contra la base de datos
-│   └── seed.js                 # Carga datos iniciales (5 categorías, 8 productos)
-├── src/
-│   ├── config/
-│   │   └── database.js         # Pool de conexiones PostgreSQL con SSL
-│   ├── controllers/            # Lógica de negocio (auth, products, orders, cart, webhook)
-│   ├── middleware/
-│   │   ├── auth.js             # Verificación de JWT
-│   │   └── errorHandler.js     # Manejo centralizado de errores
-│   ├── routes/                 # Endpoints REST por entidad
-│   └── services/
-│       └── abandonedCartService.js  # Job automático de detección de carritos
-└── server.js                   # Entry point: Express, rutas y arranque del servidor
-
-technova-frontend/
-├── src/
-│   ├── components/
-│   │   ├── Navbar.jsx              # Barra de navegación
-│   │   ├── Footer.jsx              # Footer
-│   │   ├── CartDrawer.jsx          # Panel lateral del carrito
-│   │   ├── ProductCard.jsx         # Tarjeta de producto
-│   │   ├── ParticlesBackground.jsx # Canvas animado de partículas
-│   │   └── HeroParticles.jsx       # Hero de la página de inicio
-│   ├── context/
-│   │   ├── AuthContext.jsx         # Autenticación con JWT
-│   │   └── CartContext.jsx         # Carrito con persistencia en localStorage
-│   ├── hooks/
-│   │   └── useAbandonedCart.js     # Detección de inactividad y disparo del webhook
-│   ├── pages/                      # Home, Catalog, ProductDetail, Checkout, Login, Register
-│   ├── services/
-│   │   └── api.js                  # Cliente Axios con JWT automático
-│   ├── App.jsx                     # Layout y rutas
-│   └── main.jsx                    # Entry point con providers
-└── index.html
-```
-
----
-
-## Endpoints principales de la API
-
-| Método | Ruta | Descripción | Auth |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Registrar usuario | — |
-| `POST` | `/api/auth/login` | Iniciar sesión (devuelve JWT) | — |
-| `GET` | `/api/products` | Listar productos (filtros: `category`, `featured`, `search`, `page`) | — |
-| `GET` | `/api/products/:id` | Detalle de producto | — |
-| `GET` | `/api/categories` | Listar categorías | — |
-| `GET/POST/DELETE` | `/api/cart` | Gestión del carrito | ✅ |
-| `GET/POST` | `/api/orders` | Historial y creación de órdenes | ✅ |
-| `POST` | `/api/webhook/cart-abandoned` | Endpoint llamado por el hook del frontend | — |
-| `GET` | `/api/health` | Health check | — |
-
----
-
-## Tecnologías
-
-**Backend:** Node.js · Express · PostgreSQL · `pg` · JWT · bcrypt · Axios
-
-**Frontend:** React 18 · Vite 5 · React Router v6 · Tailwind CSS v3 · Axios
-
-**Automatización:** n8n · Google Gemini · Gmail · Telegram · Google Sheets
+[github.com/Mariano251/Sinergia-Digital-](https://github.com/Mariano251/Sinergia-Digital-)
